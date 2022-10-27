@@ -20,6 +20,13 @@ export default class ScrollComponent extends BaseScrollComponent {
         scrollThrottle: 16,
         canChangeSize: false,
     };
+    private static _defaultContainer(props: object, children: React.ReactNode): React.ReactNode | null {
+        return (
+            <div {...props}>
+                {children}
+            </div>
+        );
+    }
     private _height: number;
     private _width: number;
     private _scrollViewRef: BaseScrollView | null = null;
@@ -54,6 +61,11 @@ export default class ScrollComponent extends BaseScrollComponent {
             position: "absolute",
             top: 0,
         } : undefined;
+        const renderContentContainer = this.props.renderContentContainer ? this.props.renderContentContainer : ScrollComponent._defaultContainer;
+        const style = {
+            height: this.props.contentHeight,
+            width: this.props.contentWidth,
+        };
         return (
             <Scroller ref={(scrollView: BaseScrollView) => this._scrollViewRef = scrollView as (BaseScrollView | null)}
                 {...this.props}
@@ -66,12 +78,7 @@ export default class ScrollComponent extends BaseScrollComponent {
                         {this.props.renderHeader()}
                     </div>
                 )}
-                <div style={{
-                    height: this.props.contentHeight,
-                    width: this.props.contentWidth,
-                }}>
-                    {this.props.children}
-                </div>
+                {renderContentContainer({ style }, this.props.children)}
                 {this.props.renderFooter && (
                     <div style={headerFooterWrapperStyle}>
                         {this.props.renderFooter()}
