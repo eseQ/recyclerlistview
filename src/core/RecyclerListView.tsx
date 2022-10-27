@@ -38,11 +38,11 @@ import ItemAnimator, { BaseItemAnimator } from "./ItemAnimator";
 import { DebugHandlers } from "..";
 import { ComponentCompat } from "../utils/ComponentCompat";
 //#if [REACT-NATIVE]
-//import ScrollComponent from "../platform/reactnative/scrollcomponent/ScrollComponent";
-//import ViewRenderer from "../platform/reactnative/viewrenderer/ViewRenderer";
-//import { DefaultJSItemAnimator as DefaultItemAnimator } from "../platform/reactnative/itemanimators/defaultjsanimator/DefaultJSItemAnimator";
-//import { Platform } from "react-native";
-//const IS_WEB = !Platform || Platform.OS === "web";
+import ScrollComponent from "../platform/reactnative/scrollcomponent/ScrollComponent";
+import ViewRenderer from "../platform/reactnative/viewrenderer/ViewRenderer";
+import { DefaultJSItemAnimator as DefaultItemAnimator } from "../platform/reactnative/itemanimators/defaultjsanimator/DefaultJSItemAnimator";
+import { Platform } from "react-native";
+const IS_WEB = !Platform || Platform.OS === "web";
 //#endif
 
 /***
@@ -50,10 +50,10 @@ import { ComponentCompat } from "../utils/ComponentCompat";
  */
 
 //#if [WEB]
-import ScrollComponent from "../platform/web/scrollcomponent/ScrollComponent";
-import ViewRenderer from "../platform/web/viewrenderer/ViewRenderer";
-import { DefaultWebItemAnimator as DefaultItemAnimator } from "../platform/web/itemanimators/DefaultWebItemAnimator";
-const IS_WEB = true;
+//import ScrollComponent from "../platform/web/scrollcomponent/ScrollComponent";
+//import ViewRenderer from "../platform/web/viewrenderer/ViewRenderer";
+//import { DefaultWebItemAnimator as DefaultItemAnimator } from "../platform/web/itemanimators/DefaultWebItemAnimator";
+//const IS_WEB = true;
 //#endif
 
 /***
@@ -61,7 +61,7 @@ const IS_WEB = true;
  * For advanced usage check out prop descriptions below.
  * You also get common methods such as: scrollToIndex, scrollToItem, scrollToTop, scrollToEnd, scrollToOffset, getCurrentScrollOffset,
  * findApproxFirstVisibleIndex.
- * You'll need a ref to Recycler in order to call these
+ * You"ll need a ref to Recycler in order to call these
  * Needs to have bounded size in all cases other than window scrolling (web).
  *
  * NOTE: React Native implementation uses ScrollView internally which means you get all ScrollView features as well such as Pull To Refresh, paging enabled
@@ -87,9 +87,9 @@ export interface RecyclerListViewProps {
     onRecreate?: (params: OnRecreateParams) => void;
     onEndReached?: () => void;
     onEndReachedThreshold?: number;
-    onStartReached?: () => void;
+    onStartReached?: () => (void | Promise<boolean | null | undefined>);
     onStartReachedThreshold?: number;
-    cacheOnEdgeReached?: boolean;
+    onStartReachedMinInterval?: number;
     onVisibleIndexesChanged?: TOnItemStatusChanged;
     onVisibleIndicesChanged?: TOnItemStatusChanged;
     renderFooter?: () => JSX.Element | JSX.Element[] | null;
@@ -109,7 +109,7 @@ export interface RecyclerListViewProps {
     style?: object | number;
     debugHandlers?: DebugHandlers;
     renderContentContainer?: (props?: object, children?: React.ReactNode) => React.ReactNode | null;
-    //For all props that need to be proxied to inner/external scrollview. Put them in an object and they'll be spread
+    //For all props that need to be proxied to inner/external scrollview. Put them in an object and they"ll be spread
     //and passed down. For better typescript support.
     scrollViewProps?: object;
     applyWindowCorrection?: (offsetX: number, offsetY: number, windowCorrection: WindowCorrection) => void;
@@ -140,8 +140,11 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
     });
 
     private _virtualRenderer: VirtualRenderer;
-    private _onStartReachedCalled = false;
-    private _onEndReachedCalled = false;
+    // is data fetched after start edge was reached
+    private _onStartFetched = false;
+    private _onStartEdgeReachedDimensions: Dimension | undefined;
+    private _onStartReactedTime: number | undefined;
+    private _onEdgeReachedDisabled = false;
     private _initComplete = false;
     private _relayoutReqIndex: number = -1;
     private _params: RenderStackParams = {
@@ -206,11 +209,11 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
 
     public componentDidUpdate(): void {
         this._processInitialOffset();
-        this._processOnEdgeReached();
         this._checkAndChangeLayouts(this.props);
         if (this.props.dataProvider.getSize() === 0) {
             console.warn(Messages.WARN_NO_DATA); //tslint:disable-line
         }
+        this._processOnEdgeReached();
     }
 
     public componentDidMount(): void {
@@ -313,7 +316,7 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
 
     // You can use requestAnimationFrame callback to change renderAhead in multiple frames to enable advanced progressive
     // rendering when view types are very complex. This method returns a boolean saying if the update was committed. Retry in
-    // the next frame if you get a failure (if mount wasn't complete). Value should be greater than or equal to 0;
+    // the next frame if you get a failure (if mount wasn"t complete). Value should be greater than or equal to 0;
     // Very useful when you have a page where you need a large renderAheadOffset. Setting it at once will slow down the load and
     // this will help mitigate that.
     public updateRenderAheadOffset(renderAheadOffset: number): boolean {
@@ -447,7 +450,8 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
         this._params.itemCount = newProps.dataProvider.getSize();
         this._virtualRenderer.setParamsAndDimensions(this._params, this._layout);
         this._virtualRenderer.setLayoutProvider(newProps.layoutProvider);
-        if (newProps.dataProvider.hasStableIds() && this.props.dataProvider !== newProps.dataProvider && newProps.dataProvider.requiresDataChangeHandling()) {
+        const isDifferent = JSON.stringify(this.props.dataProvider.getAllData()) !== JSON.stringify(newProps.dataProvider.getAllData());
+        if (newProps.dataProvider.hasStableIds() && isDifferent && newProps.dataProvider.requiresDataChangeHandling()) {
             this._virtualRenderer.handleDataSetChange(newProps.dataProvider, this.props.optimizeForInsertDeleteAnimations);
         }
         if (this.props.layoutProvider !== newProps.layoutProvider || this.props.isHorizontal !== newProps.isHorizontal) {
@@ -459,20 +463,21 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
                 this._virtualRenderer.refresh();
             }
             this._refreshViewability();
-        } else if (this.props.dataProvider !== newProps.dataProvider) {
-            const onStartReachedCalled = this._onStartReachedCalled;
-            if (newProps.dataProvider.getSize() > this.props.dataProvider.getSize()) {
-                this._setOnEdgeReachedCalled(false);
-            }
+        } else if (isDifferent) {
+            // const onStartReachedCalled = this._onStartReachedCalled;
+            // if (newProps.dataProvider.getSize() > this.props.dataProvider.getSize()) {
+            //     this._setOnEdgeReachedCalled(false);
+            // }
             const layoutManager = this._virtualRenderer.getLayoutManager();
-            if (layoutManager) {
-                const virtualLayoutDimensionsBeforeUpdate: Dimension = layoutManager.getContentDimension();
+            if (layoutManager && this._onStartEdgeReachedDimensions) {
+                const virtualLayoutDimensionsBeforeUpdate = this._onStartEdgeReachedDimensions;
                 layoutManager.relayoutFromIndex(newProps.dataProvider.getFirstIndexToProcessInternal(), newProps.dataProvider.getSize());
                 const virtualLayoutDimensionsAfterUpdate: Dimension = layoutManager.getContentDimension();
                 const viewabilityTracker: ViewabilityTracker | null = this._virtualRenderer.getViewabilityTracker();
                 // NOTE: This works for most cases, but relies on an assumption that any items loaded during the onStartReached callback
                 //       were prepended to the dataset (not inserted at the end or middle somewhere).
-                if (viewabilityTracker && onStartReachedCalled) {
+                // const isDifSize = newProps.dataProvider.getSize() !== this.props.dataProvider.getSize();
+                if (viewabilityTracker && this._onStartFetched) {
                     // Adjust offset for prepended items
                     const previousOffset: number = viewabilityTracker.getLastOffset();
                     const adjustedOffset: number = this.props.isHorizontal
@@ -480,14 +485,18 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
                         : previousOffset + virtualLayoutDimensionsAfterUpdate.height - virtualLayoutDimensionsBeforeUpdate.height;
                     const offsetX = (this.props.isHorizontal ? adjustedOffset : undefined) as number;
                     const offsetY = (this.props.isHorizontal ? undefined : adjustedOffset) as number;
-                    this._virtualRenderer.updateOffset(
-                        offsetX,
-                        offsetY,
-                        true,
-                        this._getWindowCorrection(offsetX, offsetY, this.props),
-                    );
+                    if (offsetY !== 0) {
+                        this._virtualRenderer.updateOffset(
+                            offsetX,
+                            offsetY,
+                            true,
+                            this._getWindowCorrection(offsetX, offsetY, this.props),
+                        );
+                        this._onEdgeReachedDisabled = false;
+                        this._onStartFetched = false;
+                    }
                 }
-                this._virtualRenderer.refresh(onStartReachedCalled);
+                this._virtualRenderer.refreshWithAnchor();
             }
         } else if (forceFullRender) {
             const layoutManager = this._virtualRenderer.getLayoutManager();
@@ -716,32 +725,37 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
     }
 
     private _processOnEdgeReached = (): void => {
-        if (!this._getOnEdgeReachedCalled() && this._virtualRenderer && (this.props.onEndReached || this.props.onStartReached)) {
+        if (this._virtualRenderer && (this.props.onEndReached || this.props.onStartReached)) {
             const virtualLayout = this._virtualRenderer.getLayoutDimension();
             const viewabilityTracker = this._virtualRenderer.getViewabilityTracker();
-            if (viewabilityTracker) {
+            if (viewabilityTracker && !this._onEdgeReachedDisabled) {
                 const windowBound = this.props.isHorizontal ? virtualLayout.width - this._layout.width : virtualLayout.height - this._layout.height;
                 const lastOffset = viewabilityTracker.getLastOffset();
                 const isWithinEndThreshold = windowBound - lastOffset <= Default.value<number>(this.props.onEndReachedThreshold, 0);
                 const isWithinStartThreshold = lastOffset <= Default.value<number>(this.props.onStartReachedThreshold, 0);
                 if (this.props.onEndReached && isWithinEndThreshold) {
-                    if (this.props.cacheOnEdgeReached) { this._onEndReachedCalled = true; }
                     this.props.onEndReached();
                 } else if (this.props.onStartReached && isWithinStartThreshold) {
-                    if (this.props.cacheOnEdgeReached) { this._onStartReachedCalled = true; }
-                    this.props.onStartReached();
+                    if (!this.props.onStartReachedMinInterval || !this._onStartReactedTime ||
+                        (new Date().getTime() - this._onStartReactedTime) >= this.props.onStartReachedMinInterval) {
+                        this._onStartReactedTime = new Date().getTime();
+                        const layoutManager = this._virtualRenderer.getLayoutManager();
+                        if (layoutManager) {
+                            this._onStartEdgeReachedDimensions = layoutManager.getContentDimension();
+                        }
+                        const result = this.props.onStartReached();
+                        if (result) {
+                            result.then((r) => {
+                                if (r === true) {
+                                    this._onStartFetched = true;
+                                    this._onEdgeReachedDisabled = true;
+                                }
+                            });
+                        }
+                    }
                 }
             }
         }
-    }
-
-    private _getOnEdgeReachedCalled(): boolean {
-        return this._onStartReachedCalled || this._onEndReachedCalled;
-    }
-
-    private _setOnEdgeReachedCalled(onEdgeReachedCalled: boolean): void {
-        this._onStartReachedCalled = onEdgeReachedCalled;
-        this._onEndReachedCalled = onEdgeReachedCalled;
     }
 }
 
@@ -831,7 +845,7 @@ RecyclerListView.propTypes = {
     forceNonDeterministicRendering: PropTypes.bool,
 
     //In some cases the data passed at row level may not contain all the info that the item depends upon, you can keep all other info
-    //outside and pass it down via this prop. Changing this object will cause everything to re-render. Make sure you don't change
+    //outside and pass it down via this prop. Changing this object will cause everything to re-render. Make sure you don"t change
     //it often to ensure performance. Re-renders are heavy.
     extendedState: PropTypes.object,
 
@@ -859,7 +873,7 @@ RecyclerListView.propTypes = {
         PropTypes.number,
     ]),
     //For TS use case, not necessary with JS use.
-    //For all props that need to be proxied to inner/external scrollview. Put them in an object and they'll be spread
+    //For all props that need to be proxied to inner/external scrollview. Put them in an object and they"ll be spread
     //and passed down.
     scrollViewProps: PropTypes.object,
 
