@@ -464,20 +464,14 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
             }
             this._refreshViewability();
         } else if (isDifferent) {
-            // const onStartReachedCalled = this._onStartReachedCalled;
-            // if (newProps.dataProvider.getSize() > this.props.dataProvider.getSize()) {
-            //     this._setOnEdgeReachedCalled(false);
-            // }
             const layoutManager = this._virtualRenderer.getLayoutManager();
-            if (layoutManager && this._onStartEdgeReachedDimensions) {
+            if (layoutManager) {
                 const virtualLayoutDimensionsBeforeUpdate = this._onStartEdgeReachedDimensions;
                 layoutManager.relayoutFromIndex(newProps.dataProvider.getFirstIndexToProcessInternal(), newProps.dataProvider.getSize());
                 const virtualLayoutDimensionsAfterUpdate: Dimension = layoutManager.getContentDimension();
                 const viewabilityTracker: ViewabilityTracker | null = this._virtualRenderer.getViewabilityTracker();
-                // NOTE: This works for most cases, but relies on an assumption that any items loaded during the onStartReached callback
-                //       were prepended to the dataset (not inserted at the end or middle somewhere).
                 // const isDifSize = newProps.dataProvider.getSize() !== this.props.dataProvider.getSize();
-                if (viewabilityTracker && this._onStartFetched) {
+                if (viewabilityTracker && this._onStartFetched && virtualLayoutDimensionsBeforeUpdate) {
                     // Adjust offset for prepended items
                     const previousOffset: number = viewabilityTracker.getLastOffset();
                     const adjustedOffset: number = this.props.isHorizontal
