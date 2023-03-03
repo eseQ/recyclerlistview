@@ -77,6 +77,7 @@ export interface OnRecreateParams {
 }
 
 export interface RecyclerListViewProps {
+    ref?: React.LegacyRef<any>;
     layoutProvider: BaseLayoutProvider;
     dataProvider: BaseDataProvider;
     rowRenderer: (type: string | number, data: any, index: number, extendedState?: object) => JSX.Element | JSX.Element[] | null;
@@ -94,7 +95,7 @@ export interface RecyclerListViewProps {
     onVisibleIndicesChanged?: TOnItemStatusChanged;
     renderFooter?: () => JSX.Element | JSX.Element[] | null;
     renderHeader?: () => JSX.Element | JSX.Element[] | null;
-    externalScrollView?: { new(props: ScrollViewDefaultProps): BaseScrollView };
+    externalScrollView?: new(props: ScrollViewDefaultProps) => BaseScrollView;
     layoutSize?: Dimension;
     initialOffset?: number;
     initialRenderIndex?: number;
@@ -756,13 +757,13 @@ export default class RecyclerListView<P extends RecyclerListViewProps, S extends
 RecyclerListView.propTypes = {
 
     //Refer the sample
-    layoutProvider: PropTypes.instanceOf(BaseLayoutProvider).isRequired,
+    // layoutProvider: PropTypes.instanceOf(BaseLayoutProvider).isRequired,
 
-    //Refer the sample
-    dataProvider: PropTypes.instanceOf(BaseDataProvider).isRequired,
+    // //Refer the sample
+    // dataProvider: PropTypes.instanceOf(BaseDataProvider).isRequired,
 
-    //Used to maintain scroll position in case view gets destroyed e.g, cases of back navigation
-    contextProvider: PropTypes.instanceOf(ContextProvider),
+    // //Used to maintain scroll position in case view gets destroyed e.g, cases of back navigation
+    // contextProvider: PropTypes.instanceOf(ContextProvider),
 
     //Methods which returns react component to be rendered. You get type of view and data in the callback.
     rowRenderer: PropTypes.func.isRequired,

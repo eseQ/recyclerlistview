@@ -1,6 +1,6 @@
 {
   "name": "@ndivid/recyclerlistview",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "description": "The listview that you need and deserve. It was built for performance, uses cell recycling to achieve smooth scrolling.",
   "main": "dist/reactnative/index.js",
   "types": "dist/reactnative/index.d.ts",
@@ -35,20 +35,20 @@
   "homepage": "https://github.com/Flipkart/recyclerlistview",
   "dependencies": {
     "lodash.debounce": "4.0.8",
-    "prop-types": "15.5.8",
+    "prop-types": "15.8.1",
     "ts-object-utils": "0.0.5"
   },
   "peerDependencies": {
     "react": ">= 15.2.1",
-    "react-native": ">= 0.30.0"
+    "react-native": ">= 0.50.0"
   },
   "devDependencies": {
-    "@types/lodash.debounce": "4.0.6",
-    "@types/prop-types": "15.5.2",
-    "@types/react": "17.0.2",
-    "@types/react-native": "0.65.0",
+    "@types/lodash.debounce": "4.0.7",
+    "@types/prop-types": "15.7.5",
+    "@types/react": "18.0.28",
+    "@types/react-native": "0.71.3",
     "file-directives": "1.4.6",
-    "tslint": "5.11.0",
-    "typescript": "3.3.1"
+    "tslint": "5.20.1",
+    "typescript": "4.9.5"
   }
 }

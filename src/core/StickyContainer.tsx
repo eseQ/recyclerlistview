@@ -197,9 +197,9 @@ export default class StickyContainer<P extends StickyContainerProps> extends Com
 
     private _isChildRecyclerInstance = (): boolean => {
         return (
-            this.props.children.props.dataProvider
-            && this.props.children.props.rowRenderer
-            && this.props.children.props.layoutProvider
+            !!this.props.children.props.dataProvider
+            && !!this.props.children.props.rowRenderer
+            && !!this.props.children.props.layoutProvider
         );
     }
 
